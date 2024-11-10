@@ -18,12 +18,12 @@ public class WebSocketController {
     private WebSocketService webSocketService;
 
     @MessageMapping("/quiz/start")
-    public void startQuiz(@Payload @Valid QuizStartMessage message) {
+    public void startQuiz(@Payload QuizStartMessage message) {
         webSocketService.initializeQuiz(message.getQuizId());
     }
 
     @MessageMapping("/quiz/answer")
-    public void receiveAnswer(@Payload @Valid AnswerMessage message, Principal principal) {
+    public void receiveAnswer(@Payload AnswerMessage message, Principal principal) {
         String username = principal.getName();
         webSocketService.handleUserAnswer(username, message.getQuestionId(), message.getSelectedOptionId());
     }

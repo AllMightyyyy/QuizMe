@@ -1,5 +1,5 @@
 import React, { createContext, useState, useEffect } from 'react';
-import { jwtDecode } from 'jwt-decode';
+import { jwtDecode } from 'jwt-decode'; // Corrected import
 import axiosInstance from '../utils/axios';
 
 // Create the context
@@ -15,28 +15,37 @@ export const AuthProvider = ({ children }) => {
     useEffect(() => {
         const token = localStorage.getItem('token');
         if (token) {
-            const decoded = jwtDecode(token);
-            setAuth({
-                token,
-                user: decoded,
-            });
+            try {
+                const decoded = jwtDecode(token);
+                setAuth({
+                    token,
+                    user: decoded,
+                });
+            } catch (error) {
+                console.error('Invalid token:', error);
+                localStorage.removeItem('token');
+            }
         }
     }, []);
 
     const login = async (username, password) => {
         try {
             const response = await axiosInstance.post('/auth/login', { username, password });
-            const token = response.data.token;
-            const decoded = jwtDecode(token);
-            localStorage.setItem('token', token);
-            setAuth({
-                token,
-                user: decoded,
-            });
-            return { success: true };
+            if (response.data.success) {
+                const token = response.data.data.token; // Adjust based on ApiResponse
+                const decoded = jwtDecode(token);
+                localStorage.setItem('token', token);
+                setAuth({
+                    token,
+                    user: decoded,
+                });
+                return { success: true };
+            } else {
+                return { success: false, message: response.data.message };
+            }
         } catch (error) {
             console.error('Login error:', error);
-            return { success: false, message: error.response?.data?.error || 'Login failed' };
+            return { success: false, message: error.response?.data?.message || 'Login failed' };
         }
     };
 
@@ -55,17 +64,19 @@ export const AuthProvider = ({ children }) => {
                 },
             });
 
-            return { success: true, message: response.data.message };
+            if (response.data.success) {
+                return { success: true, message: response.data.message };
+            } else {
+                return { success: false, message: response.data.message };
+            }
         } catch (error) {
             console.error('Registration error:', error);
-
-            // Extract error message from the response
             let message = 'Registration failed';
             if (error.response && error.response.data) {
-                if (error.response.data.error) {
-                    message = error.response.data.error;
-                } else if (typeof error.response.data === 'string') {
+                if (typeof error.response.data === 'string') {
                     message = error.response.data;
+                } else if (error.response.data.message) {
+                    message = error.response.data.message;
                 }
             }
             return { success: false, message };

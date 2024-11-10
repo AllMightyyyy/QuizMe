@@ -41,7 +41,7 @@ public class AuthController {
 
     @PostMapping("/register")
     public ResponseEntity<ApiResponse> registerUser(
-            @Valid @ModelAttribute RegistrationRequest registrationRequest,
+            @ModelAttribute RegistrationRequest registrationRequest,
             BindingResult bindingResult
     ) {
         if (bindingResult.hasErrors()) {
@@ -85,11 +85,11 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<?> authenticateUser(@Valid @RequestBody LoginRequest loginRequest, BindingResult bindingResult) {
+    public ResponseEntity<?> authenticateUser(@RequestBody LoginRequest loginRequest, BindingResult bindingResult) {
         if (bindingResult.hasErrors()) {
             Map<String, String> errors = new HashMap<>();
             bindingResult.getFieldErrors().forEach(error -> errors.put(error.getField(), error.getDefaultMessage()));
-            return ResponseEntity.badRequest().body(errors);
+            return ResponseEntity.badRequest().body(new ApiResponse(false, "Validation errors", errors));
         }
         try {
             Authentication authentication = authenticationManager.authenticate(
@@ -98,9 +98,9 @@ public class AuthController {
             String token = jwtUtil.generateToken(authentication);
             Map<String, String> response = new HashMap<>();
             response.put("token", token);
-            return ResponseEntity.ok(response);
+            return ResponseEntity.ok(new ApiResponse(true, "Login successful", response));
         } catch (BadCredentialsException e) {
-            return ResponseEntity.status(401).body("Invalid Credentials");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ApiResponse(false, "Invalid Credentials", null));
         }
     }
 }

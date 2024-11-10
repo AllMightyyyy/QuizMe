@@ -17,6 +17,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -30,7 +31,7 @@ public class QuizController {
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse> createQuiz(@Valid @RequestBody QuizDTO quizDTO, BindingResult bindingResult) {
+    public ResponseEntity<ApiResponse> createQuiz(@RequestBody QuizDTO quizDTO, BindingResult bindingResult) {
         if (bindingResult.hasErrors()) {
             Map<String, String> errors = new HashMap<>();
             bindingResult.getFieldErrors().forEach(error -> errors.put(error.getField(), error.getDefaultMessage()));
@@ -53,20 +54,20 @@ public class QuizController {
                 .description(quizDTO.getDescription())
                 .build();
 
-        Set<Question> questions = quizDTO.getQuestions().stream().map(questionDTO -> {
-            Set<Option> options = questionDTO.getOptions().stream().map(optionDTO -> Option.builder()
+        List<Question> questions = quizDTO.getQuestions().stream().map(questionDTO -> {
+            List<Option> options = questionDTO.getOptions().stream().map(optionDTO -> Option.builder()
                     .text(optionDTO.getText())
                     .isCorrect(optionDTO.isCorrect())
-                    .build()).collect(Collectors.toSet());
+                    .build()).collect(Collectors.toList());
             return Question.builder()
                     .content(questionDTO.getContent())
                     .timeLimit(questionDTO.getTimeLimit())
                     .quiz(quiz)
-                    .options(options)
+                    .options(options)  // Pass List<Option> here
                     .build();
-        }).collect(Collectors.toSet());
+        }).collect(Collectors.toList());
 
-        quiz.setQuestions(questions);
+        quiz.setQuestions(questions);  // Pass List<Question> here
         return quiz;
     }
 
@@ -88,7 +89,7 @@ public class QuizController {
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse> updateQuiz(@PathVariable Long id, @Valid @RequestBody QuizDTO quizDTO, BindingResult bindingResult) {
+    public ResponseEntity<ApiResponse> updateQuiz(@PathVariable Long id, @RequestBody QuizDTO quizDTO, BindingResult bindingResult) {
         if (bindingResult.hasErrors()) {
             Map<String, String> errors = new HashMap<>();
             bindingResult.getFieldErrors().forEach(error -> errors.put(error.getField(), error.getDefaultMessage()));

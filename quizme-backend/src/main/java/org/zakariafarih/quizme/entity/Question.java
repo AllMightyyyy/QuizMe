@@ -6,7 +6,8 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.*;
-import java.util.Set;
+
+import java.util.*;
 
 @Entity
 @Table(name = "questions")
@@ -16,7 +17,6 @@ import java.util.Set;
 @Builder
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
 public class Question {
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @EqualsAndHashCode.Include
@@ -33,7 +33,13 @@ public class Question {
     @JsonBackReference
     private Quiz quiz;
 
-    @OneToMany(mappedBy = "question", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
+    @OneToMany(mappedBy = "question", cascade = CascadeType.ALL, fetch = FetchType.EAGER, orphanRemoval = true)
     @JsonManagedReference
-    private Set<Option> options;
+    @Builder.Default
+    private List<Option> options = new ArrayList<>();
+
+    public void addOption(Option option) {
+        this.options.add(option);
+        option.setQuestion(this);
+    }
 }

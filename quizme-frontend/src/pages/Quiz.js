@@ -18,6 +18,7 @@ const Quiz = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [timer, setTimer] = useState(0);
     const [correctAnswers, setCorrectAnswers] = useState([]);
+    const [hasAnswered, setHasAnswered] = useState(false);
     const timerRef = useRef(null);
 
     useEffect(() => {
@@ -36,7 +37,11 @@ const Quiz = () => {
     const fetchQuiz = async () => {
         try {
             const response = await axiosInstance.get(`/quizzes/${quizId}`);
-            setQuiz(response.data);
+            if (response.data.success) {
+                setQuiz(response.data.data);
+            } else {
+                toast.error(response.data.message || 'Failed to load quiz.');
+            }
             setIsLoading(false);
         } catch (error) {
             console.error('Error fetching quiz:', error);
@@ -50,7 +55,7 @@ const Quiz = () => {
         const stompClient = new Client({
             webSocketFactory: () => socket,
             connectHeaders: {
-                username: auth.user.sub, // Send username as header
+                username: auth.user.sub, // Ensure 'sub' is the correct claim for username
             },
             debug: function (str) {
                 console.log(str);
@@ -58,12 +63,14 @@ const Quiz = () => {
             reconnectDelay: 5000, // Attempt reconnection after 5 seconds
             onConnect: () => {
                 console.log('Connected to WebSocket');
+                // Subscribe to necessary topics
                 stompClient.subscribe('/topic/quiz/question', (message) => {
                     const question = JSON.parse(message.body);
-                    console.log("Received question:", message.body);
+                    console.log("Received question:", question);
                     setCurrentQuestion(question);
                     setSelectedOption('');
                     setCorrectAnswers([]);
+                    setHasAnswered(false);
                     setTimer(question.timeLimit);
                     startTimer(question.timeLimit);
                 });
@@ -86,20 +93,32 @@ const Quiz = () => {
                     // Optionally, navigate to leaderboard or disable further interactions
                 });
 
-                // Initialize quiz questions
-                stompClient.publish({
-                    destination: `/app/quiz/initialize`,
-                    body: JSON.stringify({ quizId: parseInt(quizId) }),
+                stompClient.subscribe('/topic/quiz/error', (message) => {
+                    toast.error(message.body);
                 });
+
+                stompClient.subscribe('/topic/quiz/reset', (message) => {
+                    toast.info(message.body);
+                    // Reset quiz state if needed
+                    setCurrentQuestion(null);
+                    setSelectedOption('');
+                    setCorrectAnswers([]);
+                    setLeaderboard([]);
+                    setTimer(0);
+                    setHasAnswered(false);
+                });
+
+                // If the admin starts the quiz via REST, the quiz will be initialized via WebSocket
+                // Alternatively, you can publish to start the quiz here if needed
+                // stompClient.publish({
+                //     destination: `/app/quiz/start`,
+                //     body: JSON.stringify({ quizId: parseInt(quizId) }),
+                // });
             },
             onStompError: (frame) => {
                 console.error('Broker reported error: ' + frame.headers['message']);
                 console.error('Additional details: ' + frame.body);
                 toast.error('WebSocket connection error.');
-            },
-            onDisconnect: () => {
-                console.log('Disconnected from WebSocket');
-                toast.warn('Disconnected from quiz. Attempting to reconnect...');
             },
         });
 

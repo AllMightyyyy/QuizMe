@@ -1,21 +1,35 @@
-import React, { useState, useEffect } from 'react';
-import { Container, Typography, Grid, Card, CardContent, CardActions, Button, Box } from '@mui/material';
+import React, { useState, useEffect, useContext } from 'react';
+import { Container, Typography, Grid, Card, CardContent, CardActions, Button, Box, Pagination } from '@mui/material';
 import axiosInstance from '../utils/axios';
 import { useNavigate } from 'react-router-dom';
 import { toast, ToastContainer } from 'react-toastify';
+import { AuthContext } from '../contexts/AuthContext';
 
 const Dashboard = () => {
+    const { auth } = useContext(AuthContext);
     const [quizzes, setQuizzes] = useState([]);
+    const [page, setPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
     const navigate = useNavigate();
 
     useEffect(() => {
-        fetchQuizzes();
-    }, []);
+        fetchQuizzes(page);
+    }, [page]);
 
-    const fetchQuizzes = async () => {
+    const fetchQuizzes = async (currentPage) => {
         try {
-            const response = await axiosInstance.get('/quizzes');
-            setQuizzes(response.data);
+            const response = await axiosInstance.get('/quizzes', {
+                params: {
+                    page: currentPage - 1, // Backend pages are 0-indexed
+                    size: 10, // Adjust as needed
+                },
+            });
+            if (response.data.success) {
+                setQuizzes(response.data.data.content);
+                setTotalPages(response.data.data.totalPages);
+            } else {
+                toast.error(response.data.message || 'Failed to load quizzes.');
+            }
         } catch (error) {
             console.error('Error fetching quizzes:', error);
             toast.error('Failed to load quizzes.');
@@ -24,6 +38,10 @@ const Dashboard = () => {
 
     const handleStartQuiz = (quizId) => {
         navigate(`/quiz/${quizId}`);
+    };
+
+    const handlePageChange = (event, value) => {
+        setPage(value);
     };
 
     return (
@@ -52,6 +70,9 @@ const Dashboard = () => {
                         </Grid>
                     ))}
                 </Grid>
+                <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
+                    <Pagination count={totalPages} page={page} onChange={handlePageChange} color="primary" />
+                </Box>
             </Box>
         </Container>
     );

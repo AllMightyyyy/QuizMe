@@ -5,7 +5,11 @@ import { Navigate } from 'react-router-dom';
 const PrivateRoute = ({ children }) => {
     const { auth } = useContext(AuthContext);
 
-    return auth.token ? children : <Navigate to="/login" />;
+    if (!auth.token) {
+        return <Navigate to="/login" />;
+    }
+
+    return children;
 };
 
 export default PrivateRoute;

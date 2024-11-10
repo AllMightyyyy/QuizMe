@@ -1,0 +1,41 @@
+{
+  "roles": ["ROLE_USER", "ROLE_ADMIN"],
+  "users": [
+    {
+      "username": "testuser",
+      "password": "password123",
+      "profilePhoto": "default-profile.png",
+      "roles": ["ROLE_USER"]
+    },
+    {
+      "username": "admin",
+      "password": "adminpassword",
+      "profilePhoto": "default-admin.png",
+      "roles": ["ROLE_ADMIN"]
+    }
+  ],
+  "quizzes": [
+    {
+      "title": "Sample Quiz",
+      "description": "Test your knowledge!",
+      "questions": [
+        {
+          "content": "What is the capital of France?",
+          "timeLimit": 30,
+          "options": [
+            {"text": "Paris", "isCorrect": true},
+            {"text": "Berlin", "isCorrect": false}
+          ]
+        },
+        {
+          "content": "What is 2 + 2?",
+          "timeLimit": 15,
+          "options": [
+            {"text": "4", "isCorrect": true},
+            {"text": "22", "isCorrect": false}
+          ]
+        }
+      ]
+    }
+  ]
+}

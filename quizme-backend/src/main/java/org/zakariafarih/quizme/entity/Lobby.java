@@ -2,6 +2,7 @@ package org.zakariafarih.quizme.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import java.util.HashSet;
 import java.util.Set;
 
 @Entity
@@ -16,6 +17,7 @@ public class Lobby {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @OneToMany(mappedBy = "lobby")
-    private Set<User> users;
+    @OneToMany(mappedBy = "lobby", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
+    @Builder.Default
+    private Set<User> users = new HashSet<>();
 }

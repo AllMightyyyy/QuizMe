@@ -35,6 +35,7 @@ public class LobbyService {
         }
 
         lobby.getUsers().add(user);
+        user.setLobby(lobby); // Set the lobby in the user entity
         lobbyRepository.save(lobby);
     }
 
@@ -42,6 +43,7 @@ public class LobbyService {
     public void leaveLobby(User user) {
         Lobby lobby = getLobby();
         lobby.getUsers().remove(user);
+        user.setLobby(null); // Remove the lobby from the user entity
         lobbyRepository.save(lobby);
     }
 

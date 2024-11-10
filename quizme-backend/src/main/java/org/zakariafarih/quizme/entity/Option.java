@@ -13,7 +13,6 @@ import lombok.*;
 @Builder
 @EqualsAndHashCode(onlyExplicitlyIncluded = true)
 public class Option {
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @EqualsAndHashCode.Include
@@ -28,5 +27,5 @@ public class Option {
     @JoinColumn(name = "question_id")
     @JsonBackReference
     private Question question;
-
 }
+
