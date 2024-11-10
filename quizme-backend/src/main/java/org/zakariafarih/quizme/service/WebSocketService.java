@@ -1,21 +1,17 @@
 package org.zakariafarih.quizme.service;
 
-import org.zakariafarih.quizme.entity.Answer;
-import org.zakariafarih.quizme.entity.Question;
-import org.zakariafarih.quizme.entity.Score;
-import org.zakariafarih.quizme.entity.User;
-import org.zakariafarih.quizme.entity.Option;
-import org.zakariafarih.quizme.repository.AnswerRepository;
-import org.zakariafarih.quizme.repository.QuestionRepository;
-import org.zakariafarih.quizme.repository.ScoreRepository;
-import org.zakariafarih.quizme.repository.UserRepository;
+import jakarta.annotation.PreDestroy;
+import org.zakariafarih.quizme.entity.*;
+import org.zakariafarih.quizme.repository.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.Optional;
+import java.util.concurrent.*;
+import java.util.stream.Collectors;
 
 @Service
 public class WebSocketService {
@@ -35,93 +31,249 @@ public class WebSocketService {
     @Autowired
     private UserRepository userRepository;
 
-    private Map<Long, List<Question>> quizQuestionsMap = new HashMap<>(); // Quiz ID to questions
+    @Autowired
+    private LobbyService lobbyService;
 
-    private Map<String, Long> userStartTimeMap = new HashMap<>(); // username to start time of question
+    private LocalDateTime questionStartTime;
 
-    // Broadcast a question to all users in the lobby
-    public void broadcastQuestion(Long quizId, int questionIndex) {
-        List<Question> questions = quizQuestionsMap.get(quizId);
-        if (questions == null || questionIndex >= questions.size()) {
-            System.out.println("No more questions or quiz not started, quizId: " + quizId);
-            messagingTemplate.convertAndSend("/topic/quiz/end", "Quiz Ended");
+    private boolean isQuizActive = false;
+    private Long activeQuizId = null;
+    private List<Question> activeQuizQuestions = new ArrayList<>();
+    private int currentQuestionIndex = 0;
+
+    private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+
+    private final Map<Long, Set<Long>> userAnswersMap = new ConcurrentHashMap<>();
+
+    private final Map<Long, ScheduledFuture<?>> quizTimers = new ConcurrentHashMap<>();
+
+    private final Map<String, String> userSessionMap = new ConcurrentHashMap<>();
+
+    public synchronized void initializeQuiz(Long quizId) {
+        if (isQuizActive) {
+            System.out.println("A quiz is already active. Cannot start another.");
+            messagingTemplate.convertAndSend("/topic/quiz/error", "A quiz is already in progress.");
             return;
         }
-        Question currentQuestion = questions.get(questionIndex);
-        System.out.println("Broadcasting question ID: " + currentQuestion.getId() + " for quiz ID: " + quizId);
-        messagingTemplate.convertAndSend("/topic/quiz/question", currentQuestion);
-    }
 
-    // Handle answer submission
-    public void handleAnswer(String username, Long questionId, Long selectedOptionId) {
-        Optional<User> userOpt = userRepository.findByUsername(username);
-        Optional<Question> questionOpt = questionRepository.findById(questionId);
-        if (userOpt.isEmpty() || questionOpt.isEmpty()) {
-            return;
-        }
-        User user = userOpt.get();
-        Question question = questionOpt.get();
-
-        boolean isCorrect = question.getOptions().stream()
-                .filter(opt -> opt.getId().equals(selectedOptionId))
-                .findFirst()
-                .map(Option::isCorrect)
-                .orElse(false);
-
-        LocalDateTime answeredAt = LocalDateTime.now();
-        Answer answer = Answer.builder()
-                .user(user)
-                .question(question)
-                .selectedOptionId(selectedOptionId)
-                .isCorrect(isCorrect)
-                .answeredAt(answeredAt)
-                .build();
-        answerRepository.save(answer);
-
-        // Calculate points based on speed and correctness
-        Long startTime = userStartTimeMap.getOrDefault(username, System.currentTimeMillis());
-        long responseTime = System.currentTimeMillis() - startTime; // in milliseconds
-
-        int points = 0;
-        if (isCorrect) {
-            // Example scoring: 1000 - responseTime (for speed), minimum 100 points
-            points = (int) Math.max(100, 1000 - responseTime / 10);
-        }
-
-        // Update or create score
-        Optional<Score> scoreOpt = scoreRepository.findByUserAndQuiz(user, question.getQuiz());
-        Score score;
-        if (scoreOpt.isPresent()) {
-            score = scoreOpt.get();
-            score.setPoints(score.getPoints() + points);
-        } else {
-            score = Score.builder()
-                    .user(user)
-                    .quiz(question.getQuiz())
-                    .points(points)
-                    .build();
-        }
-        scoreRepository.save(score);
-
-        // Broadcast updated leaderboard
-        List<Score> leaderboard = scoreRepository.findAllByQuizIdOrderByPointsDesc(question.getQuiz().getId());
-        messagingTemplate.convertAndSend("/topic/quiz/leaderboard", leaderboard);
-    }
-
-    // Initialize quiz questions
-    public void initializeQuiz(Long quizId) {
         List<Question> questions = questionRepository.findByQuizId(quizId);
         if (questions == null || questions.isEmpty()) {
             System.out.println("No questions found for quiz ID: " + quizId);
-        } else {
-            quizQuestionsMap.put(quizId, questions);
-            System.out.println("Broadcasting first question for quiz ID: " + quizId);
-            broadcastQuestion(quizId, 0); // Start with the first question
+            messagingTemplate.convertAndSend("/topic/quiz/error", "No questions available for this quiz.");
+            return;
+        }
+
+        isQuizActive = true;
+        activeQuizId = quizId;
+        activeQuizQuestions = new ArrayList<>(questions);
+        currentQuestionIndex = 0;
+        userAnswersMap.clear();
+
+        broadcastQuestion();
+    }
+
+    private void broadcastQuestion() {
+        if (currentQuestionIndex >= activeQuizQuestions.size()) {
+            endQuiz();
+            return;
+        }
+
+        Question currentQuestion = activeQuizQuestions.get(currentQuestionIndex);
+        questionStartTime = LocalDateTime.now();
+
+        Lobby lobby = lobbyService.getLobby();
+        Set<User> lobbyUsers = lobby.getUsers();
+
+        for (User user : lobbyUsers) {
+            messagingTemplate.convertAndSendToUser(user.getUsername(), "/topic/quiz/question", currentQuestion);
+        }
+
+        ScheduledFuture<?> revealTask = scheduler.schedule(() -> {
+            revealAnswer(currentQuestion);
+            updateLeaderboard();
+            currentQuestionIndex++;
+            broadcastQuestion();
+        }, currentQuestion.getTimeLimit(), TimeUnit.SECONDS);
+
+        quizTimers.put(activeQuizId, revealTask);
+    }
+
+    private void revealAnswer(Question question) {
+        List<Option> correctOptions = question.getOptions().stream()
+                .filter(Option::isCorrect)
+                .collect(Collectors.toList());
+        Lobby lobby = lobbyService.getLobby();
+        Set<User> lobbyUsers = lobby.getUsers();
+        for (User user : lobbyUsers) {
+            messagingTemplate.convertAndSendToUser(user.getUsername(), "/topic/quiz/correctAnswer", correctOptions);
         }
     }
 
-    // Get leaderboard sorted by points descending
-    public List<Score> getLeaderboard(Long quizId) {
-        return scoreRepository.findAllByQuizIdOrderByPointsDesc(quizId);
+    public synchronized void handleUserAnswer(String username, Long questionId, Long selectedOptionId) {
+        try {
+            if (!isQuizActive || activeQuizId == null) {
+                messagingTemplate.convertAndSendToUser(username, "/topic/quiz/error", "No active quiz.");
+                return;
+            }
+
+            Question currentQuestion = activeQuizQuestions.get(currentQuestionIndex);
+            if (!currentQuestion.getId().equals(questionId)) {
+                messagingTemplate.convertAndSendToUser(username, "/topic/quiz/error", "Invalid question.");
+                return;
+            }
+
+            userAnswersMap.putIfAbsent(questionId, ConcurrentHashMap.newKeySet());
+
+            User user = userRepository.findByUsername(username).orElse(null);
+            if (user == null) {
+                messagingTemplate.convertAndSendToUser(username, "/topic/quiz/error", "User not found.");
+                return;
+            }
+
+            Long userId = user.getId();
+            if (userAnswersMap.get(questionId).contains(userId)) {
+                messagingTemplate.convertAndSendToUser(username, "/topic/quiz/error", "Multiple answers are not allowed.");
+                return;
+            }
+
+            userAnswersMap.get(questionId).add(userId);
+
+            Optional<Option> selectedOption = currentQuestion.getOptions().stream()
+                    .filter(opt -> opt.getId().equals(selectedOptionId))
+                    .findFirst();
+
+            if (selectedOption.isEmpty()) {
+                messagingTemplate.convertAndSendToUser(username, "/topic/quiz/error", "Invalid option selected.");
+                return;
+            }
+
+            boolean isCorrect = selectedOption.get().isCorrect();
+            LocalDateTime answeredAt = LocalDateTime.now();
+
+            Answer answer = Answer.builder()
+                    .user(user)
+                    .question(currentQuestion)
+                    .selectedOptionId(selectedOptionId)
+                    .isCorrect(isCorrect)
+                    .answeredAt(answeredAt)
+                    .build();
+            answerRepository.save(answer);
+
+            long timeTaken = Duration.between(questionStartTime, answeredAt).getSeconds();
+            int maxPoints = 100;
+            int points = isCorrect ? (int) Math.max(0, (maxPoints - (int)(timeTaken * 10))) : 0;
+            points = Math.max(points, 0);
+
+            Score score = scoreRepository.findByUserAndQuiz(user, currentQuestion.getQuiz())
+                    .orElse(Score.builder()
+                            .user(user)
+                            .quiz(currentQuestion.getQuiz())
+                            .points(0)
+                            .build());
+
+            score.setPoints(score.getPoints() + points);
+            scoreRepository.save(score);
+        } catch (Exception e) {
+            e.printStackTrace();
+            messagingTemplate.convertAndSendToUser(username, "/topic/quiz/error", "An error occurred while processing your answer.");
+        }
+    }
+
+    private void updateLeaderboard() {
+        if (activeQuizId == null) return;
+
+        List<Score> leaderboard = scoreRepository.findAllByQuizIdOrderByPointsDesc(activeQuizId);
+        Lobby lobby = lobbyService.getLobby();
+        Set<User> lobbyUsers = lobby.getUsers();
+        for (User user : lobbyUsers) {
+            messagingTemplate.convertAndSendToUser(user.getUsername(), "/topic/quiz/leaderboard", leaderboard);
+        }
+    }
+
+    public synchronized void handleUserConnection(String username, String sessionId) {
+        if (userSessionMap.containsKey(username)) {
+            String oldSessionId = userSessionMap.get(username);
+            handleUserReconnection(username, oldSessionId, sessionId);
+        } else {
+            userSessionMap.put(username, sessionId);
+            if (isQuizActive && activeQuizId != null) {
+                if (currentQuestionIndex < activeQuizQuestions.size()) {
+                    Question currentQuestion = activeQuizQuestions.get(currentQuestionIndex);
+                    messagingTemplate.convertAndSendToUser(username, "/topic/quiz/question", currentQuestion);
+                }
+            }
+        }
+    }
+
+    private void handleUserReconnection(String username, String oldSessionId, String newSessionId) {
+        userSessionMap.put(username, newSessionId);
+
+        User user = userRepository.findByUsername(username).orElseThrow(() -> new RuntimeException("User not found"));
+
+        for (int i = 0; i < currentQuestionIndex; i++) {
+            Question question = activeQuizQuestions.get(i);
+
+            boolean hasAnswered = !answerRepository.findByUserAndQuestionQuiz(user, question.getQuiz())
+                    .stream()
+                    .anyMatch(answer -> answer.getQuestion().getId().equals(question.getId()));
+
+            if (!hasAnswered) {
+                Score score = scoreRepository.findByUserAndQuiz(user, question.getQuiz())
+                        .orElse(Score.builder()
+                                .user(user)
+                                .quiz(question.getQuiz())
+                                .points(0)
+                                .build());
+                score.setPoints(score.getPoints() + 0);
+                scoreRepository.save(score);
+            }
+        }
+
+        if (isQuizActive && currentQuestionIndex < activeQuizQuestions.size()) {
+            Question currentQuestion = activeQuizQuestions.get(currentQuestionIndex);
+            messagingTemplate.convertAndSendToUser(username, "/topic/quiz/question", currentQuestion);
+        }
+    }
+
+    public synchronized void handleUserDisconnection(String username, String sessionId) {
+        userSessionMap.remove(username);
+        messagingTemplate.convertAndSend("/topic/lobby/users", lobbyService.getLobby().getUsers());
+    }
+
+    private void endQuiz() {
+        ScheduledFuture<?> revealTask = quizTimers.get(activeQuizId);
+        if (revealTask != null && !revealTask.isDone()) {
+            revealTask.cancel(true);
+        }
+
+        isQuizActive = false;
+        activeQuizId = null;
+        activeQuizQuestions.clear();
+        currentQuestionIndex = 0;
+        userAnswersMap.clear();
+        messagingTemplate.convertAndSend("/topic/quiz/end", "Quiz Ended.");
+    }
+
+    @PreDestroy
+    public void shutdown() {
+        scheduler.shutdownNow();
+    }
+
+    public synchronized void resetQuiz() {
+        if (isQuizActive) {
+            scheduler.shutdownNow();
+            endQuiz();
+            messagingTemplate.convertAndSend("/topic/quiz/reset", "Quiz has been reset by admin.");
+        }
+    }
+
+    private Long getUserIdByUsername(String username) {
+        return userRepository.findByUsername(username)
+                .map(User::getId)
+                .orElse(null);
+    }
+
+    private Long getActiveQuizId() {
+        return activeQuizId;
     }
 }

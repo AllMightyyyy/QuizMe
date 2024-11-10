@@ -2,6 +2,7 @@ package org.zakariafarih.quizme.entity;
 
 import com.fasterxml.jackson.annotation.JsonBackReference;
 import jakarta.persistence.*;
+import jakarta.validation.constraints.NotBlank;
 import lombok.*;
 
 @Entity
@@ -18,7 +19,9 @@ public class Option {
     @EqualsAndHashCode.Include
     private Long id;
 
+    @NotBlank(message = "Option text is required")
     private String text;
+
     private boolean isCorrect;
 
     @ManyToOne

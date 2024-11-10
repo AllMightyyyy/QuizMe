@@ -6,5 +6,4 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface LobbyRepository extends JpaRepository<Lobby, Long> {
-    // Additional query methods if needed
 }

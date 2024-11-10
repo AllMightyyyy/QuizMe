@@ -5,7 +5,9 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "answers")
+@Table(name = "answers", uniqueConstraints = {
+        @UniqueConstraint(columnNames = {"user_id", "question_id"})
+})
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -23,10 +25,11 @@ public class Answer {
     private LocalDateTime answeredAt;
 
     @ManyToOne
-    @JoinColumn(name = "user_id")
+    @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
     @ManyToOne
-    @JoinColumn(name = "question_id")
+    @JoinColumn(name = "question_id", nullable = false)
     private Question question;
+
 }

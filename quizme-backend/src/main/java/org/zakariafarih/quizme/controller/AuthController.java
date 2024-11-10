@@ -1,8 +1,14 @@
 package org.zakariafarih.quizme.controller;
 
+import jakarta.validation.Valid;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
+import org.springframework.validation.BindingResult;
+import org.zakariafarih.quizme.dto.ApiResponse;
+import org.zakariafarih.quizme.dto.LoginRequest;
+import org.zakariafarih.quizme.dto.RegistrationRequest;
 import org.zakariafarih.quizme.entity.User;
+import org.zakariafarih.quizme.service.FileStorageService;
 import org.zakariafarih.quizme.service.UserService;
 import org.zakariafarih.quizme.util.JwtUtil;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,6 +19,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -29,16 +36,29 @@ public class AuthController {
     @Autowired
     private JwtUtil jwtUtil;
 
+    @Autowired
+    private FileStorageService fileStorageService;
+
     @PostMapping("/register")
-    public ResponseEntity<?> registerUser(
-            @RequestParam("username") String username,
-            @RequestParam("password") String password,
-            @RequestParam(value = "profilePhoto", required = false) MultipartFile profilePhoto
+    public ResponseEntity<ApiResponse> registerUser(
+            @Valid @ModelAttribute RegistrationRequest registrationRequest,
+            BindingResult bindingResult
     ) {
+        if (bindingResult.hasErrors()) {
+            Map<String, String> errors = new HashMap<>();
+            bindingResult.getFieldErrors().forEach(error -> errors.put(error.getField(), error.getDefaultMessage()));
+            ApiResponse errorResponse = new ApiResponse(false, "Validation errors", errors);
+            return ResponseEntity.badRequest().body(errorResponse);
+        }
+
         try {
+            String username = registrationRequest.getUsername();
+            String password = registrationRequest.getPassword();
+            MultipartFile profilePhoto = registrationRequest.getProfilePhoto();
+
             String photoPath = "default-profile.png";
             if (profilePhoto != null && !profilePhoto.isEmpty()) {
-                // Implement photo saving logic here
+                photoPath = fileStorageService.storeFile(profilePhoto);
             }
 
             User user = User.builder()
@@ -49,26 +69,28 @@ public class AuthController {
 
             userService.registerUser(user);
 
-            Map<String, String> response = new HashMap<>();
-            response.put("message", "User registered successfully");
+            ApiResponse response = new ApiResponse(true, "User registered successfully", null);
             return ResponseEntity.ok(response);
+
         } catch (DataIntegrityViolationException e) {
-            // Handle unique constraint violation (e.g., username already exists)
-            Map<String, String> errorResponse = new HashMap<>();
-            errorResponse.put("error", "Username already exists");
+            ApiResponse errorResponse = new ApiResponse(false, "Username already exists", null);
             return ResponseEntity.status(HttpStatus.CONFLICT).body(errorResponse);
+
         } catch (Exception e) {
-            // Log the exception for debugging
             e.printStackTrace();
 
-            Map<String, String> errorResponse = new HashMap<>();
-            errorResponse.put("error", "Error registering user: " + e.getMessage());
+            ApiResponse errorResponse = new ApiResponse(false, "Error registering user: " + e.getMessage(), null);
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
         }
     }
 
     @PostMapping("/login")
-    public ResponseEntity<?> authenticateUser(@RequestBody User loginRequest) {
+    public ResponseEntity<?> authenticateUser(@Valid @RequestBody LoginRequest loginRequest, BindingResult bindingResult) {
+        if (bindingResult.hasErrors()) {
+            Map<String, String> errors = new HashMap<>();
+            bindingResult.getFieldErrors().forEach(error -> errors.put(error.getField(), error.getDefaultMessage()));
+            return ResponseEntity.badRequest().body(errors);
+        }
         try {
             Authentication authentication = authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(loginRequest.getUsername(), loginRequest.getPassword())

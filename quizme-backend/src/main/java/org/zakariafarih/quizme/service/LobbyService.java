@@ -1,11 +1,12 @@
 package org.zakariafarih.quizme.service;
 
-import org.zakariafarih.quizme.entity.Lobby;
-import org.zakariafarih.quizme.entity.User;
-import org.zakariafarih.quizme.repository.LobbyRepository;
-import org.zakariafarih.quizme.repository.UserRepository;
+import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.zakariafarih.quizme.entity.Lobby;
+import org.zakariafarih.quizme.entity.User;
+import org.zakariafarih.quizme.exception.LobbyFullException;
+import org.zakariafarih.quizme.repository.LobbyRepository;
 
 import java.util.HashSet;
 import java.util.Optional;
@@ -16,29 +17,41 @@ public class LobbyService {
     @Autowired
     private LobbyRepository lobbyRepository;
 
-    @Autowired
-    private UserRepository userRepository;
+    private static final int MAX_LOBBY_SIZE = 100;
 
-    // Assuming a single lobby for simplicity
-    public Lobby getLobby() {
+    public synchronized Lobby getLobby() {
         Optional<Lobby> lobbyOpt = lobbyRepository.findAll().stream().findFirst();
-        if (lobbyOpt.isPresent()) {
-            return lobbyOpt.get();
-        } else {
-            Lobby newLobby = Lobby.builder().users(new HashSet<>()).build();
-            return lobbyRepository.save(newLobby);
-        }
+        return lobbyOpt.orElseGet(() -> lobbyRepository.save(
+                Lobby.builder().users(new HashSet<>()).build())
+        );
     }
 
+    @Transactional
     public void joinLobby(User user) {
         Lobby lobby = getLobby();
+
+        if (isLobbyFull()) {
+            throw new LobbyFullException("Lobby is full.");
+        }
+
         lobby.getUsers().add(user);
         lobbyRepository.save(lobby);
     }
 
+    @Transactional
     public void leaveLobby(User user) {
         Lobby lobby = getLobby();
         lobby.getUsers().remove(user);
         lobbyRepository.save(lobby);
+    }
+
+    public boolean isUserInLobby(User user) {
+        Lobby lobby = getLobby();
+        return lobby.getUsers().contains(user);
+    }
+
+    public boolean isLobbyFull() {
+        Lobby lobby = getLobby();
+        return lobby.getUsers().size() >= MAX_LOBBY_SIZE;
     }
 }

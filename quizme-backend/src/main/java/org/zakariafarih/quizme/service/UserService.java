@@ -1,9 +1,11 @@
 package org.zakariafarih.quizme.service;
 
+import jakarta.transaction.Transactional;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.zakariafarih.quizme.entity.Role;
 import org.zakariafarih.quizme.entity.User;
+import org.zakariafarih.quizme.exception.RoleNotFoundException;
 import org.zakariafarih.quizme.repository.RoleRepository;
 import org.zakariafarih.quizme.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,10 +31,11 @@ public class UserService implements UserDetailsService {
         this.passwordEncoder = passwordEncoder;
     }
 
+    @Transactional
     public User registerUser(User user) {
         user.setPassword(passwordEncoder.encode(user.getPassword()));
-        Role userRole = roleRepository.findByName("USER")
-                .orElseThrow(() -> new RuntimeException("Role USER not found"));
+        Role userRole = roleRepository.findByName("ROLE_USER")
+                .orElseThrow(() -> new RoleNotFoundException("Role ROLE_USER not found"));
         user.setRoles(new HashSet<>());
         user.getRoles().add(userRole);
         return userRepository.save(user);

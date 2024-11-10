@@ -1,11 +1,24 @@
 package org.zakariafarih.quizme.dto;
 
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
+import lombok.Data;
+
 import java.util.Set;
 
+@Data
 public class QuizDTO {
     private Long id;
+
+    @NotBlank(message = "Title is required")
     private String title;
+
+    @NotBlank(message = "Description is required")
     private String description;
+
+    @NotEmpty(message = "Quiz must have at least one question")
+    @Valid
     private Set<QuestionDTO> questions;
 
     public String getTitle() {

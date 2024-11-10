@@ -1,10 +1,13 @@
 import SockJS from 'sockjs-client';
 import { Client } from '@stomp/stompjs';
 
-const setupWebSocket = (onMessageReceived, onError) => {
+const setupWebSocket = () => {
     const socket = new SockJS('http://localhost:8081/ws');
     const stompClient = new Client({
         webSocketFactory: () => socket,
+        connectHeaders: {
+            username: auth.user.sub, // Send username as header
+        },
         debug: function (str) {
             console.log(str);
         },

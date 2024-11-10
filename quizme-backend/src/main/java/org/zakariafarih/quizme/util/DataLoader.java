@@ -36,17 +36,17 @@ public class DataLoader implements CommandLineRunner {
     }
 
     private void loadRoles() {
-        if (roleRepository.findByName("USER").isEmpty()) {
-            roleRepository.save(new Role(null, "USER"));
+        if (roleRepository.findByName("ROLE_USER").isEmpty()) {
+            roleRepository.save(new Role(null, "ROLE_USER"));
         }
-        if (roleRepository.findByName("ADMIN").isEmpty()) {
-            roleRepository.save(new Role(null, "ADMIN"));
+        if (roleRepository.findByName("ROLE_ADMIN").isEmpty()) {
+            roleRepository.save(new Role(null, "ROLE_ADMIN"));
         }
     }
 
     private void loadUsers() {
         if (userService.findByUsername("testuser") == null) {
-            Role userRole = roleRepository.findByName("USER").orElseThrow();
+            Role userRole = roleRepository.findByName("ROLE_USER").orElseThrow(() -> new RuntimeException("Role ROLE_USER not found"));
             User testUser = User.builder()
                     .username("testuser")
                     .password(passwordEncoder.encode("password123"))
@@ -54,6 +54,17 @@ public class DataLoader implements CommandLineRunner {
                     .roles(Set.of(userRole))
                     .build();
             userService.registerUser(testUser);
+        }
+
+        if (userService.findByUsername("admin") == null) {
+            Role adminRole = roleRepository.findByName("ROLE_ADMIN").orElseThrow(() -> new RuntimeException("Role ROLE_ADMIN not found"));
+            User adminUser = User.builder()
+                    .username("admin")
+                    .password(passwordEncoder.encode("adminpassword"))
+                    .profilePhoto("default-admin.png")
+                    .roles(Set.of(adminRole))
+                    .build();
+            userService.registerUser(adminUser);
         }
     }
 
@@ -89,5 +100,4 @@ public class DataLoader implements CommandLineRunner {
             quizService.createQuiz(quiz);
         }
     }
-
 }

@@ -1,6 +1,7 @@
 package org.zakariafarih.quizme.entity;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.Email;
 import lombok.*;
 import java.util.Set;
 
@@ -26,6 +27,7 @@ public class User {
     @Column(nullable = false)
     private String password;
 
+    @Email(message = "Email should be valid")
     private String email;
 
     private String profilePhoto; // URL or path to the photo

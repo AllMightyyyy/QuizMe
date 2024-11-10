@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { Container, Typography, Button, Card, CardContent, RadioGroup, FormControlLabel, Radio, Box, CircularProgress } from '@mui/material';
 import axiosInstance from '../utils/axios';
@@ -16,6 +16,9 @@ const Quiz = () => {
     const [leaderboard, setLeaderboard] = useState([]);
     const [client, setClient] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [timer, setTimer] = useState(0);
+    const [correctAnswers, setCorrectAnswers] = useState([]);
+    const timerRef = useRef(null);
 
     useEffect(() => {
         fetchQuiz();
@@ -25,6 +28,7 @@ const Quiz = () => {
             if (client) {
                 client.deactivate();
             }
+            clearInterval(timerRef.current);
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [quizId]);
@@ -45,9 +49,13 @@ const Quiz = () => {
         const socket = new SockJS('http://localhost:8081/ws');
         const stompClient = new Client({
             webSocketFactory: () => socket,
+            connectHeaders: {
+                username: auth.user.sub, // Send username as header
+            },
             debug: function (str) {
                 console.log(str);
             },
+            reconnectDelay: 5000, // Attempt reconnection after 5 seconds
             onConnect: () => {
                 console.log('Connected to WebSocket');
                 stompClient.subscribe('/topic/quiz/question', (message) => {
@@ -55,11 +63,27 @@ const Quiz = () => {
                     console.log("Received question:", message.body);
                     setCurrentQuestion(question);
                     setSelectedOption('');
+                    setCorrectAnswers([]);
+                    setTimer(question.timeLimit);
+                    startTimer(question.timeLimit);
+                });
+
+                stompClient.subscribe('/topic/quiz/correctAnswer', (message) => {
+                    const correctOptions = JSON.parse(message.body);
+                    setCorrectAnswers(correctOptions);
+                    // Stop the timer
+                    setTimer(0);
+                    clearInterval(timerRef.current);
                 });
 
                 stompClient.subscribe('/topic/quiz/leaderboard', (message) => {
                     const leaderboardData = JSON.parse(message.body);
                     setLeaderboard(leaderboardData);
+                });
+
+                stompClient.subscribe('/topic/quiz/end', (message) => {
+                    toast.info(message.body);
+                    // Optionally, navigate to leaderboard or disable further interactions
                 });
 
                 // Initialize quiz questions
@@ -71,11 +95,30 @@ const Quiz = () => {
             onStompError: (frame) => {
                 console.error('Broker reported error: ' + frame.headers['message']);
                 console.error('Additional details: ' + frame.body);
+                toast.error('WebSocket connection error.');
+            },
+            onDisconnect: () => {
+                console.log('Disconnected from WebSocket');
+                toast.warn('Disconnected from quiz. Attempting to reconnect...');
             },
         });
 
         stompClient.activate();
         setClient(stompClient);
+    };
+
+    const startTimer = (duration) => {
+        setTimer(duration);
+        clearInterval(timerRef.current);
+        timerRef.current = setInterval(() => {
+            setTimer((prev) => {
+                if (prev <= 1) {
+                    clearInterval(timerRef.current);
+                    return 0;
+                }
+                return prev - 1;
+            });
+        }, 1000);
     };
 
     const handleSubmitAnswer = () => {
@@ -95,6 +138,7 @@ const Quiz = () => {
             body: JSON.stringify(answerMessage),
         });
 
+        setHasAnswered(true);
         toast.success('Answer submitted!');
     };
 
@@ -120,7 +164,10 @@ const Quiz = () => {
                 {currentQuestion ? (
                     <Card sx={{ mt: 3 }}>
                         <CardContent>
-                            <Typography variant="h6">{currentQuestion.content}</Typography>
+                            <Box display="flex" justifyContent="space-between" alignItems="center">
+                                <Typography variant="h6">{currentQuestion.content}</Typography>
+                                <Typography variant="h6">Time: {timer}s</Typography>
+                            </Box>
                             <RadioGroup
                                 value={selectedOption}
                                 onChange={(e) => setSelectedOption(e.target.value)}
@@ -131,12 +178,28 @@ const Quiz = () => {
                                         value={option.id.toString()}
                                         control={<Radio />}
                                         label={option.text}
+                                        disabled={timer === 0 || correctAnswers.length > 0 || hasAnswered}
+                                        style={
+                                            correctAnswers.find((opt) => opt.id === option.id)
+                                                ? { backgroundColor: '#d4edda' } // Green for correct
+                                                : hasAnswered && selectedOption === option.id.toString()
+                                                    ? { backgroundColor: '#f8d7da' } // Red for incorrect
+                                                    : {}
+                                        }
                                     />
                                 ))}
                             </RadioGroup>
-                            <Button variant="contained" color="primary" onClick={handleSubmitAnswer}>
-                                Submit Answer
-                            </Button>
+                            {timer > 0 && correctAnswers.length === 0 && !hasAnswered && (
+                                <Button variant="contained" color="primary" onClick={handleSubmitAnswer}>
+                                    Submit Answer
+                                </Button>
+                            )}
+                            {correctAnswers.length > 0 && (
+                                <Typography variant="body1" color="green" sx={{ mt: 2 }}>
+                                    Correct Answer(s):{' '}
+                                    {correctAnswers.map((opt) => opt.text).join(', ')}
+                                </Typography>
+                            )}
                         </CardContent>
                     </Card>
                 ) : (
