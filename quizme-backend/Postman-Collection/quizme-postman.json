@@ -1,0 +1,623 @@
+{
+  "info": {
+    "name": "QuizMe Collection",
+    "_postman_id": "12345678-abcd-1234-abcd-123456abcdef",
+    "description": "Postman collection for QuizMe API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "AuthController",
+      "item": [
+        {
+          "name": "Register User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "multipart/form-data"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "username",
+                  "value": "testuser",
+                  "type": "text"
+                },
+                {
+                  "key": "password",
+                  "value": "password123",
+                  "type": "text"
+                },
+                {
+                  "key": "profilePhoto",
+                  "type": "file"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Login User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"username\": \"testuser\", \"password\": \"password123\"}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const response = pm.response.json();",
+                  "if (response && response.token) {",
+                  "    pm.environment.set('authToken', response.token);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "LobbyController",
+      "item": [
+        {
+          "name": "Join Lobby",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/lobby/join",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "lobby",
+                "join"
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('authToken')) {",
+                  "    pm.sendRequest({",
+                  "        url: pm.environment.get('baseUrl') + '/auth/login',",
+                  "        method: 'POST',",
+                  "        header: { 'Content-Type': 'application/json' },",
+                  "        body: { mode: 'raw', raw: '{\"username\": \"testuser\", \"password\": \"password123\"}' }",
+                  "    }, function (err, res) {",
+                  "        if (!err) {",
+                  "            const data = res.json();",
+                  "            pm.environment.set('authToken', data.token);",
+                  "        } else {",
+                  "            console.error('Login failed:', err);",
+                  "        }",
+                  "    });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Leave Lobby",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/lobby/leave",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "lobby",
+                "leave"
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('authToken')) {",
+                  "    pm.sendRequest({",
+                  "        url: pm.environment.get('baseUrl') + '/auth/login',",
+                  "        method: 'POST',",
+                  "        header: { 'Content-Type': 'application/json' },",
+                  "        body: { mode: 'raw', raw: '{\"username\": \"testuser\", \"password\": \"password123\"}' }",
+                  "    }, function (err, res) {",
+                  "        if (!err) {",
+                  "            const data = res.json();",
+                  "            pm.environment.set('authToken', data.token);",
+                  "        } else {",
+                  "            console.error('Login failed:', err);",
+                  "        }",
+                  "    });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Lobby Users",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/lobby/users",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "lobby",
+                "users"
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('authToken')) {",
+                  "    pm.sendRequest({",
+                  "        url: pm.environment.get('baseUrl') + '/auth/login',",
+                  "        method: 'POST',",
+                  "        header: { 'Content-Type': 'application/json' },",
+                  "        body: { mode: 'raw', raw: '{\"username\": \"testuser\", \"password\": \"password123\"}' }",
+                  "    }, function (err, res) {",
+                  "        if (!err) {",
+                  "            const data = res.json();",
+                  "            pm.environment.set('authToken', data.token);",
+                  "        } else {",
+                  "            console.error('Login failed:', err);",
+                  "        }",
+                  "    });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "QuizController",
+      "item": [
+        {
+          "name": "Create Quiz",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"title\": \"Sample Quiz\", \"description\": \"A quiz description\", \"questions\": [{\"content\": \"Sample question?\", \"timeLimit\": 30, \"options\": [{\"text\": \"Option 1\", \"isCorrect\": true}, {\"text\": \"Option 2\", \"isCorrect\": false}]}]}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/quizzes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "quizzes"
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('authToken')) {",
+                  "    pm.sendRequest({",
+                  "        url: pm.environment.get('baseUrl') + '/auth/login',",
+                  "        method: 'POST',",
+                  "        header: { 'Content-Type': 'application/json' },",
+                  "        body: { mode: 'raw', raw: '{\"username\": \"testuser\", \"password\": \"password123\"}' }",
+                  "    }, function (err, res) {",
+                  "        if (!err) {",
+                  "            const data = res.json();",
+                  "            pm.environment.set('authToken', data.token);",
+                  "        } else {",
+                  "            console.error('Login failed:', err);",
+                  "        }",
+                  "    });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get All Quizzes",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/quizzes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "quizzes"
+              ]
+            },
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}",
+                "type": "text"
+              }
+            ]
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('authToken')) {",
+                  "    pm.sendRequest({",
+                  "        url: pm.environment.get('baseUrl') + '/auth/login',",
+                  "        method: 'POST',",
+                  "        header: { 'Content-Type': 'application/json' },",
+                  "        body: { mode: 'raw', raw: '{\"username\": \"testuser\", \"password\": \"password123\"}' }",
+                  "    }, function (err, res) {",
+                  "        if (!err) {",
+                  "            const data = res.json();",
+                  "            pm.environment.set('authToken', data.token);",
+                  "        } else {",
+                  "            console.error('Login failed:', err);",
+                  "        }",
+                  "    });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Quiz By ID",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/quizzes/{{id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "quizzes",
+                "{{id}}"
+              ]
+            },
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}",
+                "type": "text"
+              }
+            ]
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('authToken')) {",
+                  "    pm.sendRequest({",
+                  "        url: pm.environment.get('baseUrl') + '/auth/login',",
+                  "        method: 'POST',",
+                  "        header: { 'Content-Type': 'application/json' },",
+                  "        body: { mode: 'raw', raw: '{\"username\": \"testuser\", \"password\": \"password123\"}' }",
+                  "    }, function (err, res) {",
+                  "        if (!err) {",
+                  "            const data = res.json();",
+                  "            pm.environment.set('authToken', data.token);",
+                  "        } else {",
+                  "            console.error('Login failed:', err);",
+                  "        }",
+                  "    });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Quiz",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"title\": \"Updated Quiz Title\", \"description\": \"Updated Description\", \"questions\": [{\"content\": \"Updated question?\", \"timeLimit\": 20, \"options\": [{\"text\": \"Updated Option 1\", \"isCorrect\": false}, {\"text\": \"Updated Option 2\", \"isCorrect\": true}]}]}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/quizzes/{{id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "quizzes",
+                "{{id}}"
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('authToken')) {",
+                  "    pm.sendRequest({",
+                  "        url: pm.environment.get('baseUrl') + '/auth/login',",
+                  "        method: 'POST',",
+                  "        header: { 'Content-Type': 'application/json' },",
+                  "        body: { mode: 'raw', raw: '{\"username\": \"testuser\", \"password\": \"password123\"}' }",
+                  "    }, function (err, res) {",
+                  "        if (!err) {",
+                  "            const data = res.json();",
+                  "            pm.environment.set('authToken', data.token);",
+                  "        } else {",
+                  "            console.error('Login failed:', err);",
+                  "        }",
+                  "    });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete Quiz",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/quizzes/{{id}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "quizzes",
+                "{{id}}"
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('authToken')) {",
+                  "    pm.sendRequest({",
+                  "        url: pm.environment.get('baseUrl') + '/auth/login',",
+                  "        method: 'POST',",
+                  "        header: { 'Content-Type': 'application/json' },",
+                  "        body: { mode: 'raw', raw: '{\"username\": \"testuser\", \"password\": \"password123\"}' }",
+                  "    }, function (err, res) {",
+                  "        if (!err) {",
+                  "            const data = res.json();",
+                  "            pm.environment.set('authToken', data.token);",
+                  "        } else {",
+                  "            console.error('Login failed:', err);",
+                  "        }",
+                  "    });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "AdminController",
+      "item": [
+        {
+          "name": "Start Quiz",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/start-quiz?quizId={{quizId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "start-quiz"
+              ],
+              "query": [
+                {
+                  "key": "quizId",
+                  "value": "{{quizId}}"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('authToken')) {",
+                  "    pm.sendRequest({",
+                  "        url: pm.environment.get('baseUrl') + '/auth/login',",
+                  "        method: 'POST',",
+                  "        header: { 'Content-Type': 'application/json' },",
+                  "        body: { mode: 'raw', raw: '{\"username\": \"testuser\", \"password\": \"password123\"}' }",
+                  "    }, function (err, res) {",
+                  "        if (!err) {",
+                  "            const data = res.json();",
+                  "            pm.environment.set('authToken', data.token);",
+                  "        } else {",
+                  "            console.error('Login failed:', err);",
+                  "        }",
+                  "    });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reset Quiz",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{authToken}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/reset-quiz",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "reset-quiz"
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.environment.get('authToken')) {",
+                  "    pm.sendRequest({",
+                  "        url: pm.environment.get('baseUrl') + '/auth/login',",
+                  "        method: 'POST',",
+                  "        header: { 'Content-Type': 'application/json' },",
+                  "        body: { mode: 'raw', raw: '{\"username\": \"testuser\", \"password\": \"password123\"}' }",
+                  "    }, function (err, res) {",
+                  "        if (!err) {",
+                  "            const data = res.json();",
+                  "            pm.environment.set('authToken', data.token);",
+                  "        } else {",
+                  "            console.error('Login failed:', err);",
+                  "        }",
+                  "    });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
